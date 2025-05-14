@@ -1,0 +1,12 @@
+langchain
+ipykernel
+langchain_community
+bs4
+pypdf
+ibm_watsonx_ai
+langchain_ibm
+gradio
+langchain_huggingface
+dotenv
+faiss-cpu
+langchain_groq
