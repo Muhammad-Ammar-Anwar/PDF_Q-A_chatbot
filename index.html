@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DocMind — PDF Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  /* ── TOKENS ─────────────────────────────────────────────────────── */
+  :root {
+    --bg:        #0a0a0f;
+    --surface:   #111118;
+    --surface2:  #18181f;
+    --border:    rgba(255,255,255,0.07);
+    --border2:   rgba(255,255,255,0.12);
+    --accent:    #e8ff47;
+    --accent2:   #b8ff00;
+    --text:      #f0f0f5;
+    --muted:     #6b6b80;
+    --user-bg:   #1e1e2a;
+    --bot-bg:    #141420;
+    --danger:    #ff4757;
+    --success:   #2ecc71;
+    --radius:    14px;
+    --radius-sm: 8px;
+    --font-head: 'Syne', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+    --shadow:    0 8px 32px rgba(0,0,0,0.5);
+    --glow:      0 0 40px rgba(232,255,71,0.12);
+  }
+
+  /* ── RESET ───────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.65;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── NOISE OVERLAY ───────────────────────────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.4;
+  }
+
+  /* ── TOP BAR ─────────────────────────────────────────────────────── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+    backdrop-filter: blur(10px);
+    position: relative;
+    z-index: 10;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-head);
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .logo-icon {
+    width: 34px; height: 34px;
+    background: var(--accent);
+    border-radius: 9px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .logo-icon svg { width: 18px; height: 18px; }
+  .logo span.dim { color: var(--muted); font-weight: 400; }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 50px;
+    padding: 5px 14px;
+    font-size: 12.5px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.3s;
+  }
+  .status-dot.online  { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .status-dot.loading { background: var(--accent);  animation: pulse 1s infinite; }
+
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
+
+  /* ── LAYOUT ──────────────────────────────────────────────────────── */
+  .app-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── SIDEBAR ─────────────────────────────────────────────────────── */
+  .sidebar {
+    width: 320px;
+    min-width: 320px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 20px;
+    gap: 20px;
+    overflow-y: auto;
+    animation: slideInLeft 0.4s ease;
+  }
+  @keyframes slideInLeft { from { transform: translateX(-20px); opacity:0 } to { transform: none; opacity:1 } }
+
+  .sidebar-section-label {
+    font-family: var(--font-head);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  /* Upload zone */
+  .drop-zone {
+    border: 2px dashed var(--border2);
+    border-radius: var(--radius);
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .drop-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(232,255,71,0.04) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .drop-zone:hover,
+  .drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(232,255,71,0.03);
+  }
+  .drop-zone:hover::before,
+  .drop-zone.dragover::before { opacity: 1; }
+
+  .drop-icon {
+    width: 48px; height: 48px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    margin: 0 auto 14px;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .drop-zone:hover .drop-icon { transform: translateY(-2px); border-color: var(--accent); }
+  .drop-icon svg { width: 22px; height: 22px; stroke: var(--accent); }
+
+  .drop-title {
+    font-family: var(--font-head);
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 5px;
+  }
+  .drop-sub { font-size: 12.5px; color: var(--muted); }
+
+  #file-input { display: none; }
+
+  /* Progress */
+  .upload-progress {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .upload-progress.visible { display: flex; }
+
+  .progress-bar-wrap {
+    height: 4px;
+    background: var(--surface2);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    width: 0%;
+    border-radius: 99px;
+    transition: width 0.4s ease;
+  }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* PDF card */
+  .pdf-card {
+    display: none;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    gap: 12px;
+    align-items: center;
+    animation: fadeUp 0.3s ease;
+  }
+  .pdf-card.visible { display: flex; }
+  @keyframes fadeUp { from { transform: translateY(8px); opacity:0 } to { transform: none; opacity:1 } }
+
+  .pdf-thumb {
+    width: 40px; height: 48px;
+    background: linear-gradient(145deg, #1e1e2e, #2a2a3e);
+    border: 1px solid var(--border2);
+    border-radius: 7px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .pdf-thumb svg { width: 20px; height: 20px; }
+
+  .pdf-info { flex: 1; overflow: hidden; }
+  .pdf-name {
+    font-weight: 600;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pdf-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .pdf-badge {
+    background: rgba(46,204,113,0.12);
+    color: var(--success);
+    border: 1px solid rgba(46,204,113,0.25);
+    border-radius: 50px;
+    padding: 2px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* Clear btn */
+  .btn-clear {
+    background: none;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    padding: 8px 14px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 13px;
+    font-family: var(--font-body);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    transition: all 0.2s;
+    width: 100%;
+    justify-content: center;
+  }
+  .btn-clear:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+    background: rgba(255,71,87,0.05);
+  }
+  .btn-clear svg { width: 14px; height: 14px; }
+
+  /* Tips */
+  .tips-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .tip-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .tip-num {
+    width: 18px; height: 18px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    display: grid;
+    place-items: center;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: var(--font-head);
+    color: var(--accent);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  /* ── CHAT AREA ───────────────────────────────────────────────────── */
+  .chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    scroll-behavior: smooth;
+  }
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+
+  /* Empty state */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    text-align: center;
+    padding: 40px;
+    animation: fadeIn 0.6s ease;
+  }
+  @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+
+  .empty-orb {
+    width: 80px; height: 80px;
+    background: radial-gradient(circle, rgba(232,255,71,0.15) 0%, transparent 70%);
+    border: 1px solid rgba(232,255,71,0.2);
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    animation: breathe 3s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%,100% { box-shadow: 0 0 20px rgba(232,255,71,0.1); transform: scale(1); }
+    50%      { box-shadow: 0 0 40px rgba(232,255,71,0.2); transform: scale(1.04); }
+  }
+  .empty-orb svg { width: 36px; height: 36px; stroke: var(--accent); }
+  .empty-title {
+    font-family: var(--font-head);
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .empty-sub { color: var(--muted); font-size: 14px; max-width: 340px; }
+
+  .suggestion-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 8px;
+  }
+  .chip {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 50px;
+    padding: 7px 16px;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text);
+  }
+  .chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(232,255,71,0.05);
+  }
+
+  /* Messages */
+  .msg {
+    display: flex;
+    gap: 12px;
+    animation: msgIn 0.3s ease;
+    max-width: 820px;
+  }
+  @keyframes msgIn {
+    from { opacity:0; transform: translateY(10px) }
+    to   { opacity:1; transform: none }
+  }
+
+  .msg.user { flex-direction: row-reverse; align-self: flex-end; }
+  .msg.bot  { align-self: flex-start; }
+
+  .msg-avatar {
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .msg.user .msg-avatar {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+  }
+  .msg.bot .msg-avatar {
+    background: var(--accent);
+  }
+  .msg-avatar svg { width: 16px; height: 16px; }
+  .msg.user .msg-avatar svg { stroke: var(--muted); }
+  .msg.bot  .msg-avatar svg { stroke: #0a0a0f; }
+
+  .msg-content { max-width: 680px; }
+
+  .msg-bubble {
+    padding: 13px 17px;
+    border-radius: var(--radius);
+    line-height: 1.7;
+    font-size: 14.5px;
+    position: relative;
+  }
+  .msg.user .msg-bubble {
+    background: var(--user-bg);
+    border: 1px solid var(--border2);
+    border-top-right-radius: 4px;
+    color: var(--text);
+  }
+  .msg.bot .msg-bubble {
+    background: var(--bot-bg);
+    border: 1px solid var(--border);
+    border-top-left-radius: 4px;
+    color: var(--text);
+  }
+
+  .msg-time {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 5px;
+    padding: 0 4px;
+  }
+  .msg.user .msg-time { text-align: right; }
+
+  /* Typing indicator */
+  .typing-bubble {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 14px 18px;
+  }
+  .typing-dot {
+    width: 7px; height: 7px;
+    background: var(--muted);
+    border-radius: 50%;
+    animation: typingBounce 1.2s infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typingBounce {
+    0%,60%,100% { transform: translateY(0); opacity:0.4 }
+    30%          { transform: translateY(-6px); opacity:1 }
+  }
+
+  /* ── INPUT BAR ───────────────────────────────────────────────────── */
+  .input-area {
+    border-top: 1px solid var(--border);
+    padding: 20px 32px;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .input-wrap {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    padding: 12px 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .input-wrap:focus-within {
+    border-color: rgba(232,255,71,0.35);
+    box-shadow: var(--glow);
+  }
+
+  #question-input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 14.5px;
+    line-height: 1.5;
+    resize: none;
+    max-height: 140px;
+    min-height: 24px;
+    overflow-y: auto;
+    padding: 0;
+  }
+  #question-input::placeholder { color: var(--muted); }
+  #question-input::-webkit-scrollbar { width: 3px; }
+  #question-input::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+
+  .input-actions { display: flex; align-items: center; gap: 8px; }
+
+  .char-count { font-size: 11px; color: var(--muted); }
+
+  .btn-send {
+    width: 40px; height: 40px;
+    background: var(--accent);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .btn-send:hover:not(:disabled) {
+    background: var(--accent2);
+    transform: scale(1.05);
+    box-shadow: 0 4px 16px rgba(232,255,71,0.3);
+  }
+  .btn-send:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .btn-send svg { width: 18px; height: 18px; stroke: #0a0a0f; stroke-width: 2.5; }
+
+  .input-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    padding: 0 4px;
+  }
+  .input-hint { font-size: 11.5px; color: var(--muted); }
+  .input-hint kbd {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 10.5px;
+    font-family: monospace;
+  }
+
+  .session-tag {
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .session-tag span {
+    font-family: monospace;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--accent);
+    font-size: 10.5px;
+  }
+
+  /* ── TOAST ───────────────────────────────────────────────────────── */
+  #toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 10000;
+  }
+  .toast {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 12px 18px;
+    font-size: 13.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: var(--shadow);
+    animation: toastIn 0.3s ease;
+    min-width: 240px;
+  }
+  .toast.success { border-color: rgba(46,204,113,0.4); }
+  .toast.error   { border-color: rgba(255,71,87,0.4);  }
+  .toast.info    { border-color: rgba(232,255,71,0.3); }
+  .toast-icon { width: 18px; height: 18px; flex-shrink: 0; }
+  @keyframes toastIn { from { transform: translateX(20px); opacity:0 } to { transform: none; opacity:1 } }
+  @keyframes toastOut { to { transform: translateX(20px); opacity:0 } }
+
+  /* ── SCROLLBAR GLOBAL ────────────────────────────────────────────── */
+  * { scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+
+  /* ── RESPONSIVE ──────────────────────────────────────────────────── */
+  @media (max-width: 700px) {
+    .sidebar { display: none; }
+    .messages { padding: 20px 16px; }
+    .input-area { padding: 14px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── TOP BAR ─────────────────────────────────────────────────── -->
+<header class="topbar">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0a0a0f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="9" y1="13" x2="15" y2="13"/>
+        <line x1="9" y1="17" x2="13" y2="17"/>
+      </svg>
+    </div>
+    DocMind <span class="dim">&nbsp;/ PDF Intelligence</span>
+  </div>
+  <div class="topbar-right">
+    <div class="status-pill">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">Idle</span>
+    </div>
+  </div>
+</header>
+
+<!-- ── BODY ────────────────────────────────────────────────────── -->
+<div class="app-body">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <!-- Upload section -->
+    <div>
+      <p class="sidebar-section-label">Document</p>
+
+      <!-- Drop zone -->
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <div class="drop-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <p class="drop-title">Drop your PDF here</p>
+        <p class="drop-sub">or click to browse — max 50MB</p>
+      </div>
+      <input type="file" id="file-input" accept=".pdf" />
+
+      <!-- Progress -->
+      <div class="upload-progress" id="upload-progress" style="margin-top:14px">
+        <div class="progress-label">
+          <span id="progress-filename">Uploading…</span>
+          <span id="progress-pct">0%</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" id="progress-fill"></div>
+        </div>
+      </div>
+
+      <!-- PDF card -->
+      <div class="pdf-card" id="pdf-card" style="margin-top:14px">
+        <div class="pdf-thumb">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#e8ff47" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+        </div>
+        <div class="pdf-info">
+          <div class="pdf-name" id="pdf-name">—</div>
+          <div class="pdf-meta" id="pdf-meta">—</div>
+        </div>
+        <span class="pdf-badge">Ready</span>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div id="clear-section" style="display:none">
+      <button class="btn-clear" id="btn-clear">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6M14 11v6"/>
+        </svg>
+        Clear session &amp; document
+      </button>
+    </div>
+
+    <!-- Tips -->
+    <div>
+      <p class="sidebar-section-label">Tips</p>
+      <div class="tips-list">
+        <div class="tip-item"><span class="tip-num">1</span>Upload a research paper, report, or any PDF document.</div>
+        <div class="tip-item"><span class="tip-num">2</span>Wait for the "Ready" badge before asking questions.</div>
+        <div class="tip-item"><span class="tip-num">3</span>Ask specific questions for more precise answers.</div>
+        <div class="tip-item"><span class="tip-num">4</span>Press <kbd style="background:var(--surface2);border:1px solid var(--border2);padding:1px 5px;border-radius:4px;font-size:10px">Enter</kbd> to send, <kbd style="background:var(--surface2);border:1px solid var(--border2);padding:1px 5px;border-radius:4px;font-size:10px">Shift+Enter</kbd> for newline.</div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- CHAT -->
+  <div class="chat-area">
+    <div class="messages" id="messages">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-orb">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4l3 3"/>
+          </svg>
+        </div>
+        <h2 class="empty-title">Upload a PDF to begin</h2>
+        <p class="empty-sub">Drop your document in the panel on the left, then ask anything about its contents.</p>
+        <div class="suggestion-chips" id="suggestion-chips" style="display:none">
+          <span class="chip" onclick="useChip(this)">Summarise this document</span>
+          <span class="chip" onclick="useChip(this)">What are the key findings?</span>
+          <span class="chip" onclick="useChip(this)">List the main topics covered</span>
+          <span class="chip" onclick="useChip(this)">What conclusions are drawn?</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="input-area">
+      <div class="input-wrap">
+        <textarea
+          id="question-input"
+          placeholder="Ask anything about your document…"
+          rows="1"
+          disabled
+        ></textarea>
+        <div class="input-actions">
+          <span class="char-count" id="char-count"></span>
+          <button class="btn-send" id="btn-send" disabled title="Send (Enter)">
+            <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="input-footer">
+        <span class="input-hint"><kbd>Enter</kbd> to send &nbsp;·&nbsp; <kbd>Shift+Enter</kbd> for newline</span>
+        <span class="session-tag" id="session-tag" style="display:none">
+          Session: <span id="session-id-display">—</span>
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container"></div>
+
+<script>
+/* ── CONFIG ──────────────────────────────────────────────────────────── */
+const API_BASE = 'https://ammaranwar-pdf-chatbot-backend.hf.space';
+
+/* ── STATE ───────────────────────────────────────────────────────────── */
+let sessionId   = null;
+let isLoading   = false;
+
+/* ── ELEMENTS ────────────────────────────────────────────────────────── */
+const dropZone      = document.getElementById('drop-zone');
+const fileInput     = document.getElementById('file-input');
+const uploadProgress= document.getElementById('upload-progress');
+const progressFill  = document.getElementById('progress-fill');
+const progressPct   = document.getElementById('progress-pct');
+const progressFname = document.getElementById('progress-filename');
+const pdfCard       = document.getElementById('pdf-card');
+const pdfName       = document.getElementById('pdf-name');
+const pdfMeta       = document.getElementById('pdf-meta');
+const clearSection  = document.getElementById('clear-section');
+const btnClear      = document.getElementById('btn-clear');
+const messages      = document.getElementById('messages');
+const emptyState    = document.getElementById('empty-state');
+const chips         = document.getElementById('suggestion-chips');
+const questionInput = document.getElementById('question-input');
+const btnSend       = document.getElementById('btn-send');
+const charCount     = document.getElementById('char-count');
+const sessionTag    = document.getElementById('session-tag');
+const sessionDisplay= document.getElementById('session-id-display');
+const statusDot     = document.getElementById('status-dot');
+const statusText    = document.getElementById('status-text');
+
+/* ── STATUS BAR ──────────────────────────────────────────────────────── */
+function setStatus(state, text) {
+  statusDot.className = 'status-dot ' + state;
+  statusText.textContent = text;
+}
+
+/* ── TOAST ───────────────────────────────────────────────────────────── */
+function toast(msg, type = 'info', duration = 3500) {
+  const icons = {
+    success: `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+    error:   `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="#ff4757" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+    info:    `<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="#e8ff47" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+  };
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `${icons[type]}<span>${msg}</span>`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => {
+    el.style.animation = 'toastOut 0.3s ease forwards';
+    setTimeout(() => el.remove(), 300);
+  }, duration);
+}
+
+/* ── DRAG & DROP ─────────────────────────────────────────────────────── */
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+/* ── FILE UPLOAD ─────────────────────────────────────────────────────── */
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+async function handleFile(file) {
+  if (!file.name.endsWith('.pdf')) { toast('Only PDF files are accepted.', 'error'); return; }
+  if (file.size > 50 * 1024 * 1024) { toast('File size exceeds 50MB limit.', 'error'); return; }
+
+  // Show progress UI
+  dropZone.style.display = 'none';
+  uploadProgress.classList.add('visible');
+  progressFname.textContent = file.name;
+  pdfCard.classList.remove('visible');
+  setStatus('loading', 'Uploading…');
+
+  // Animate progress bar
+  let fake = 0;
+  const fakeInterval = setInterval(() => {
+    fake = Math.min(fake + Math.random() * 12, 85);
+    progressFill.style.width = fake + '%';
+    progressPct.textContent = Math.round(fake) + '%';
+  }, 200);
+
+  const form = new FormData();
+  form.append('file', file);
+
+  try {
+    const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: form });
+    clearInterval(fakeInterval);
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Upload failed');
+    }
+
+    const data = await res.json();
+    progressFill.style.width = '100%';
+    progressPct.textContent = '100%';
+
+    setTimeout(() => {
+      uploadProgress.classList.remove('visible');
+      pdfCard.classList.add('visible');
+      pdfName.textContent = file.name;
+      pdfMeta.textContent = `${data.pages} page${data.pages !== 1 ? 's' : ''} · ${formatSize(file.size)}`;
+      clearSection.style.display = 'block';
+      dropZone.style.display = 'none';
+    }, 400);
+
+    // Enable chat
+    sessionId = data.session_id;
+    questionInput.disabled = false;
+    btnSend.disabled = false;
+    questionInput.placeholder = 'Ask anything about your document…';
+    questionInput.focus();
+
+    sessionTag.style.display = 'flex';
+    sessionDisplay.textContent = sessionId.slice(0, 8) + '…';
+
+    // Update empty state
+    emptyState.querySelector('.empty-title').textContent = 'Document ready!';
+    emptyState.querySelector('.empty-sub').textContent = 'Your PDF is processed. Start asking questions below.';
+    chips.style.display = 'flex';
+
+    setStatus('online', 'Ready');
+    toast(`Loaded "${file.name}" — ${data.pages} pages`, 'success');
+
+  } catch (err) {
+    clearInterval(fakeInterval);
+    uploadProgress.classList.remove('visible');
+    dropZone.style.display = '';
+    progressFill.style.width = '0%';
+    setStatus('', 'Error');
+    toast(err.message || 'Upload failed. Is the server running?', 'error');
+    fileInput.value = '';
+  }
+}
+
+/* ── CLEAR SESSION ───────────────────────────────────────────────────── */
+btnClear.addEventListener('click', async () => {
+  if (!sessionId) return;
+  try {
+    await fetch(`${API_BASE}/session/${sessionId}`, { method: 'DELETE' });
+  } catch (_) {}
+
+  sessionId = null;
+  messages.innerHTML = '';
+  messages.appendChild(emptyState);
+  emptyState.style.display = 'flex';
+  chips.style.display = 'none';
+  emptyState.querySelector('.empty-title').textContent = 'Upload a PDF to begin';
+  emptyState.querySelector('.empty-sub').textContent = 'Drop your document in the panel on the left, then ask anything about its contents.';
+
+  pdfCard.classList.remove('visible');
+  clearSection.style.display = 'none';
+  dropZone.style.display = '';
+  progressFill.style.width = '0%';
+  fileInput.value = '';
+
+  questionInput.disabled = true;
+  btnSend.disabled = true;
+  questionInput.value = '';
+  charCount.textContent = '';
+
+  sessionTag.style.display = 'none';
+  setStatus('', 'Idle');
+  toast('Session cleared', 'info');
+});
+
+/* ── TEXTAREA AUTO-RESIZE ────────────────────────────────────────────── */
+questionInput.addEventListener('input', () => {
+  questionInput.style.height = 'auto';
+  questionInput.style.height = Math.min(questionInput.scrollHeight, 140) + 'px';
+  const len = questionInput.value.length;
+  charCount.textContent = len > 0 ? len : '';
+  btnSend.disabled = len === 0 || !sessionId || isLoading;
+});
+
+/* ── KEYBOARD SEND ───────────────────────────────────────────────────── */
+questionInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (!btnSend.disabled) sendMessage();
+  }
+});
+
+btnSend.addEventListener('click', sendMessage);
+
+/* ── CHIP HANDLER ────────────────────────────────────────────────────── */
+function useChip(el) {
+  if (!sessionId) { toast('Please upload a PDF first.', 'error'); return; }
+  questionInput.value = el.textContent;
+  questionInput.dispatchEvent(new Event('input'));
+  sendMessage();
+}
+
+/* ── SEND MESSAGE ────────────────────────────────────────────────────── */
+function now() {
+  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function appendMessage(role, text) {
+  // Hide empty state on first message
+  if (emptyState.parentNode === messages) messages.removeChild(emptyState);
+
+  const isUser = role === 'user';
+  const avatarUser = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+  const avatarBot  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`;
+
+  const wrap = document.createElement('div');
+  wrap.className = `msg ${role}`;
+  wrap.innerHTML = `
+    <div class="msg-avatar">${isUser ? avatarUser : avatarBot}</div>
+    <div class="msg-content">
+      <div class="msg-bubble">${escapeHtml(text)}</div>
+      <div class="msg-time">${now()}</div>
+    </div>`;
+  messages.appendChild(wrap);
+  messages.scrollTop = messages.scrollHeight;
+  return wrap;
+}
+
+function appendTyping() {
+  if (emptyState.parentNode === messages) messages.removeChild(emptyState);
+  const wrap = document.createElement('div');
+  wrap.className = 'msg bot';
+  wrap.id = 'typing-indicator';
+  wrap.innerHTML = `
+    <div class="msg-avatar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0a0a0f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+    </div>
+    <div class="msg-content">
+      <div class="msg-bubble">
+        <div class="typing-bubble">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>
+    </div>`;
+  messages.appendChild(wrap);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function removeTyping() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '<br>');
+}
+
+async function sendMessage() {
+  const q = questionInput.value.trim();
+  if (!q || !sessionId || isLoading) return;
+
+  isLoading = true;
+  btnSend.disabled = true;
+  questionInput.value = '';
+  questionInput.style.height = 'auto';
+  charCount.textContent = '';
+  setStatus('loading', 'Thinking…');
+
+  appendMessage('user', q);
+  appendTyping();
+
+  try {
+    const res = await fetch(`${API_BASE}/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, question: q }),
+    });
+
+    removeTyping();
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Request failed');
+    }
+
+    const data = await res.json();
+    appendMessage('bot', data.answer);
+    setStatus('online', 'Ready');
+
+  } catch (err) {
+    removeTyping();
+    appendMessage('bot', `⚠️ ${err.message || 'Something went wrong. Please try again.'}`);
+    setStatus('online', 'Ready');
+    toast(err.message, 'error');
+  } finally {
+    isLoading = false;
+    btnSend.disabled = !questionInput.value.trim() || !sessionId;
+    questionInput.focus();
+  }
+}
+</script>
+</body>
+</html>
